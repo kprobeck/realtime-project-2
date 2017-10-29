@@ -11,7 +11,7 @@
     "watch": "babel --watch ./client --out-file ./hosted/bundle.js",
     "nodemon": "nodemon --watch ./src ./src/app.js"
   },
-  "author": "Cody Van De Mark",
+  "author": "Kenneth Probeck",
   "license": "ISC",
   "dependencies": {
     "socket.io": "^1.4.8",
