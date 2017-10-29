@@ -7,6 +7,8 @@ var walkImage = void 0;
 var socket = void 0; //this user's socket
 var hash = void 0; //this user's personal object id
 
+var collisionTestBool = void 0;
+
 //directional constants for which directions a user sprite could be facing.
 var directions = {
 	DOWNLEFT: 0,
@@ -121,6 +123,26 @@ var update = function update(data) {
 	square.isOnGround = data.isOnGround;
 };
 
+// function when colliding with another user
+var collision = function collision(data) {
+	if (hash === data) {
+		//somehow collided with self? do nothing
+		return;
+	}
+
+	collisionTestBool = true;
+};
+
+// function to see if someone else has collided with you, and take actions if true
+var potentialCollision = function potentialCollision(data) {
+	if (hash === data.hashToCheck) {
+		// collision was with this user
+		collisionTestBool = true;
+	} else {
+		collisionTestBool = false;
+	}
+};
+
 // function to update gravity on the user
 var updateGravity = function updateGravity(data) {
 
@@ -197,24 +219,6 @@ var updatePosition = function updatePosition() {
 	square.prevX = square.x;
 	square.prevY = square.y;
 
-	/* TAKING OUT MOVEMENT UP AND DOWN. REDONE WITH GRAVITY/JUMP
- 
- //if the user is going up but not off screen
- //move their destination up (so we can animate)
- //from our current Y
- if(square.moveUp && square.destY > 0) {
- square.destY -= 2;
- }
- 
- //if the user is going down but not off screen
- //move their destination down (so we can animate)
- //from our current y
- if(square.moveDown && square.destY < 400) {
- square.destY += 2;
- }
- 
- */
-
 	//if the user is going left but not off screen
 	//move their destination left (so we can animate)
 	//from our current x
@@ -229,23 +233,6 @@ var updatePosition = function updatePosition() {
 		square.destX += 2;
 	}
 
-	/* ONLY WANT LEFT AND RIGHT MOVEMENT SPRITES
- 
- //if user is moving and left
- if(square.moveUp && square.moveLeft) square.direction = directions.UPLEFT;
- 
- //if user is moving up and right
- if(square.moveUp && square.moveRight) square.direction = directions.UPRIGHT;
-   //if user is moving down and left
- if(square.moveDown && square.moveLeft) square.direction = directions.DOWNLEFT;
-   //if user is moving down and right
- if(square.moveDown && square.moveRight) square.direction = directions.DOWNRIGHT;
-   //if user is just moving down
- if(square.moveDown && !(square.moveRight || square.moveLeft)) square.direction = directions.DOWN;
-   //if user is just moving up
- if(square.moveUp && !(square.moveRight || square.moveLeft)) square.direction = directions.UP;
-   */
-
 	//if user is just moving left
 	if (square.moveLeft && !(square.moveUp || square.moveDown)) square.direction = directions.LEFT;
 
@@ -256,13 +243,6 @@ var updatePosition = function updatePosition() {
 	//want to reset the animation to keep playing
 	square.alpha = 0;
 
-	/**
- normally we could emit here for 60fps (WE NOW ARE)
- since this is invoked by redraw (requestAnimationFrame).
- 
- NOTICE! - We have moved this emit to sendWithLag to 
- 	  simulate lag based on a timer. 
- **/
 	socket.emit('movementUpdate', square);
 };
 
@@ -367,6 +347,13 @@ var redraw = function redraw(time) {
 		//drawing a optional rectangle around our sprite just to show
 		//the size of each sprite
 		ctx.strokeRect(square.x, square.y, square.width, square.height);
+
+		// TEST! SEE IF THE COLLISION IS WORKING
+		if (collisionTestBool) {
+			ctx.fillText("You are colliding with another player!", 100, 100, 400);
+		}
+
+		collisionTestBool = false;
 	}
 
 	//redraw (hopefully at 60fps)
@@ -391,12 +378,10 @@ var keyDownHandler = function keyDownHandler(e) {
 	// A OR LEFT
 	if (keyPressed === 65 || keyPressed === 37) {
 		square.moveLeft = true;
-		console.log('moving left');
 	}
 	// D OR RIGHT
 	else if (keyPressed === 68 || keyPressed === 39) {
 			square.moveRight = true;
-			console.log('moving right');
 		}
 		// SpaceBar, JUMP
 		else if (keyPressed === 32) {
@@ -431,22 +416,17 @@ var keyUpHandler = function keyUpHandler(e) {
 	// A OR LEFT
 	if (keyPressed === 65 || keyPressed === 37) {
 		square.moveLeft = false;
-		console.log('no long moving left');
 	}
 	// D OR RIGHT
 	else if (keyPressed === 68 || keyPressed === 39) {
 			square.moveRight = false;
-			console.log('no long moving right');
 		}
 };
 
-//function to send this user's updates
-//NOTICE - this is pulled out into a function
-//         we can call to simulate lag.
-/*const sendWithLag = () => {
-  //send this user's updated position
-  socket.emit('movementUpdate', squares[hash]);
-};*/
+// function used to send out to the server to check for collisions
+var sendCollisionCheck = function sendCollisionCheck() {
+	socket.emit('checkCollisions', squares);
+};
 
 var init = function init() {
 	walkImage = document.querySelector('#walk');
@@ -458,22 +438,10 @@ var init = function init() {
 	//connections.
 	socket = io.connect();
 
-	//once we successfully connect, start sending
-	//this user's position. If do this before
-	//connect, then we'll get undefined values
-	//for the emit since we don't have a square yet
-	//nor do we have an active connection.
 	socket.on('connect', function () {
-		/**
-  THIS IS JUST TO SIMULATE LAG. 
-  Normally we'd send in requestAnimationFrame,
-  by event or with a very fast timer.
-  	This is just to simulate lag.
-  The higher the delay, the more data loss
-  and the less accurate the interpolation.
-  **/
-		//EVEN WITH 100ms
-		// setInterval(sendWithLag, 100);
+
+		// while connected, we are only checking for collisions every 100ms
+		setInterval(sendCollisionCheck, 100);
 	});
 
 	//when the socket receives a 'joined'
@@ -486,6 +454,10 @@ var init = function init() {
 
 	// gravity
 	socket.on('updatedGravity', updateGravity);
+
+	// collision checks
+	socket.on('collided', collision);
+	socket.on('potentialCollision', potentialCollision);
 
 	//when the socket receives a 'left'
 	//event from the server, call removeUser

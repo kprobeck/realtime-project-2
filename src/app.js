@@ -25,6 +25,18 @@ const walkImage = fs.readFileSync(`${__dirname}/../hosted/walk.png`);
 
 const PORT = process.env.PORT || process.env.NODE_PORT || 3000;
 
+// function to calculate collisions between players
+const collisionCheck = (rect1, rect2) => {
+  if (rect1.x < rect2.x + rect2.width &&
+     rect1.x + rect1.width > rect2.x &&
+     rect1.y < rect2.y + rect2.height &&
+     rect1.height + rect1.y > rect2.y) {
+    return true; // is colliding
+  }
+
+  return false; // not colliding
+};
+
 const handler = (req, res) => {
   if (req.url === '/walk.png') {
     res.writeHead(200, { 'Content-Type': 'image/png' });
@@ -146,6 +158,31 @@ io.on('connection', (sock) => {
   // are not the same on both the client and server.
   socket.emit('joined', socket.square);
 
+  // when we receive a checkCollisions, check for collisions between this square and all others
+  socket.on('checkCollisions', (data) => {
+    const squares = data;
+
+    const keysOfSquares = Object.keys(squares);
+
+
+    for (let i = 0; i < keysOfSquares.length; i++) {
+      if (squares[keysOfSquares[i]].hash !== socket.square.hash) {
+        if (collisionCheck(squares[keysOfSquares[i]], socket.square)) {
+          const dataToSend = {
+            hashToCheck: squares[keysOfSquares[i]].hash,
+            hashCollidedWith: socket.square.hash,
+          };
+
+          // broadcast to call other sockets to see if they are the ones that are hit
+          socket.broadcast.emit('potentialCollision', dataToSend);
+
+          // emit to the one that is collding
+          socket.emit('collided', squares[keysOfSquares[i]].hash);
+        }
+      }
+    }
+  });
+
   // when we receive a movement update from the client
   socket.on('movementUpdate', (data) => {
     // currently data will be the entire square object from the client
@@ -160,7 +197,6 @@ io.on('connection', (sock) => {
     socket.square.lastUpdate = new Date().getTime();
 
     /* CALCULATE GRAVITY */
-
 
     // first, check to see if the player is in fact on the ground
     if (socket.square.y >= 398) {
