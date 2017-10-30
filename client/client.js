@@ -353,6 +353,12 @@ const redraw = (time) => {
       ctx.fillText(`You are colliding with another player!`, 100, 100, 400);
     }
     
+    // TEST! DRAWING PLATFORM
+    ctx.save();
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(250, 450, 200, 20);
+    ctx.restore();
+    
     collisionTestBool = false;
   }
 
@@ -456,6 +462,7 @@ const init = () => {
   
     // gravity
     socket.on('updatedGravity', updateGravity);
+    socket.on('updatedGravityFromPlatform', )
   
     // collision checks
     socket.on('collided', collision);

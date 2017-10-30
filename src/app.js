@@ -27,6 +27,7 @@ const PORT = process.env.PORT || process.env.NODE_PORT || 3000;
 
 // function to calculate collisions between players
 const collisionCheck = (rect1, rect2) => {
+  
   if (rect1.x < rect2.x + rect2.width &&
      rect1.x + rect1.width > rect2.x &&
      rect1.y < rect2.y + rect2.height &&
@@ -34,6 +35,18 @@ const collisionCheck = (rect1, rect2) => {
     return true; // is colliding
   }
 
+  return false; // not colliding
+};
+
+// function to calculate collision of player and platform
+const collisionPlatform = (playerSquare, platform) => {
+  if (playerSquare.x < platform.x + platform.width &&
+     playerSquare.x + playerSquare.width > platform.x &&
+     playerSquare.y + playerSquare.height - 10 < platform.y + (platform.height / 2) &&
+     playerSquare.height + playerSquare.y > platform.y) {
+    return true; // is colliding
+  }
+  
   return false; // not colliding
 };
 
@@ -160,11 +173,17 @@ io.on('connection', (sock) => {
 
   // when we receive a checkCollisions, check for collisions between this square and all others
   socket.on('checkCollisions', (data) => {
+    
+    // We are blindly trusting the data for now and overriding this
+    // socket's square with the client's square
+    // we do update the time though, so we know the last time this is updated
+    socket.square.lastUpdate = new Date().getTime();
+    
     const squares = data;
 
     const keysOfSquares = Object.keys(squares);
 
-
+    // checking for collisions between players
     for (let i = 0; i < keysOfSquares.length; i++) {
       if (squares[keysOfSquares[i]].hash !== socket.square.hash) {
         if (collisionCheck(squares[keysOfSquares[i]], socket.square)) {
@@ -181,6 +200,43 @@ io.on('connection', (sock) => {
         }
       }
     }
+    
+    // check for collisions with platforms
+    const bluePlatform = {
+      x: 250,
+      y: 450,
+      width: 200,
+      height: 30,
+    };
+    
+    // will not "land" if still in the air from jumping
+    if(collisionCheck(socket.square, bluePlatform) && !socket.square.isJumping) {
+      socket.square.isOnGround = true;
+      socket.square.isFalling = false;
+      socket.square.moveDown = false;
+      socket.square.destY = socket.square.y;
+      socket.square.airTime = 10;
+      
+      const dataForGravity = {
+        destY: socket.square.destY,
+        airTime: socket.square.airTime,
+        isFalling: socket.square.isFalling,
+        isJumping: socket.square.isJumping,
+        isOnGround: socket.square.isOnGround,
+        moveUp: socket.square.moveUp,
+        moveDown: socket.square.moveDown,
+        hash: socket.square.hash,
+        lastUpdate: socket.square.lastUpdate,
+      };
+      
+      console.log('colliding with platform!')
+      
+      // UPDATE: broadcast to everyone so the user can see the effects of gravity
+      socket.broadcast.emit('updatedMovement', socket.square);
+      
+      socket.emit('updatedGravity', dataForGravity);
+    }
+    
   });
 
   // when we receive a movement update from the client
