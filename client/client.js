@@ -26,6 +26,12 @@ const directions = {
 //indexed by that user's unique id (hash from the server)
 let squares = {};
 
+// object to hold all of the coins we need to draw to the screen
+let coins = [];
+
+// object to hold all of the platforms we need to draw on the screen
+let platforms = [];
+
 //function to update a square 
 //(single square sent from the server)
 const update = (data) => {
@@ -257,6 +263,8 @@ const redraw = (time) => {
   //since that's how we index
   const keys = Object.keys(squares);
 
+  ctx.save();
+  
   //for each key in squares
   for(let i = 0; i < keys.length; i++) {
 
@@ -347,7 +355,10 @@ const redraw = (time) => {
 	//drawing a optional rectangle around our sprite just to show
 	//the size of each sprite
 	ctx.strokeRect(square.x, square.y, square.width, square.height);
-    
+  }
+  
+  ctx.restore();
+  
     // TEST! SEE IF THE COLLISION IS WORKING
     if(collisionTestBool) {
       ctx.fillText(`You are colliding with another player!`, 100, 100, 400);
@@ -356,11 +367,25 @@ const redraw = (time) => {
     // TEST! DRAWING PLATFORM
     ctx.save();
     ctx.fillStyle = 'blue';
-    ctx.fillRect(250, 450, 200, 20);
+    
+    // TEST! DRAWING COINS
+    for(let i = 0; i < platforms.length; i++) {
+      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
+    }
+    
     ctx.restore();
     
     collisionTestBool = false;
-  }
+    
+    ctx.save();
+    ctx.fillStyle = 'red';
+  
+    // TEST! DRAWING COINS
+    for(let i = 0; i < coins.length; i++) {
+      ctx.fillRect(coins[i].x, coins[i].y, coins[i].width, coins[i].height);
+    }
+  
+    ctx.restore();
 
   //redraw (hopefully at 60fps)
   requestAnimationFrame(redraw);
@@ -447,14 +472,27 @@ const init = () => {
 	
 	socket.on('connect', function () {
       
+      // get the coin/platform data from the server
+      socket.emit('getCoinData');
+      socket.emit('getPlatormData');
+      
       // while connected, we are only checking for collisions every 100ms
-      setInterval(sendCollisionCheck, 100);
+      setInterval(sendCollisionCheck, 10);
 	  
 	});  
 	
 	//when the socket receives a 'joined'
 	//event from the server, call setUser
 	socket.on('joined', setUser);
+  
+    // update the coin/platform arrays from the server
+    socket.on('coinDataFromServer', (data) => {
+      coins = data;
+    });
+  
+    socket.on('platformDataFromServer', (data) => {
+      platforms = data;
+    });
 	
 	//when the socket receives an   'updatedMovement'
 	//event from the server, call update
@@ -462,7 +500,40 @@ const init = () => {
   
     // gravity
     socket.on('updatedGravity', updateGravity);
-    socket.on('updatedGravityFromPlatform', )
+  
+    // gravity on platform
+    socket.on('updatedGravityPlatformMiss', (data) => {
+      
+      if(squares[data.hash].lastUpdate >= data.lastUpdate) {
+	     return;
+      }
+        
+      const square = squares[data.hash];
+      
+      // update info given by gravity calculation
+      square.isFalling = data.isFalling;
+      square.isOnGround = data.isOnGround;
+      
+      square.alpha = 0;
+      
+    });
+  
+    socket.on('updatedGravityPlatformHit', (data) => {
+      
+      if(squares[data.hash].lastUpdate >= data.lastUpdate) {
+	     return;
+      }
+        
+      const square = squares[data.hash];
+      
+      // update info given by gravity calculation
+      square.isFalling = data.isFalling;
+      square.isOnGround = data.isOnGround;
+      square.destY = data.destY;
+      
+      square.alpha = 0;
+      
+    });
   
     // collision checks
     socket.on('collided', collision);
