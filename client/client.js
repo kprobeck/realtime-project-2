@@ -7,7 +7,9 @@ let walkImage;
 let socket; //this user's socket
 let hash; //this user's personal object id
 
+// booleans for testing purposes
 let collisionTestBool;
+let debug;
 
 //directional constants for which directions a user sprite could be facing.
 const directions = {
@@ -165,8 +167,6 @@ const updateGravity = (data) => {
   square.airTime = data.airTime;
   square.isOnGround = data.isOnGround;
   square.destY = data.destY;
-  
-  square.alpha = 0;
 };
 
 //remove a user object by the object's id
@@ -226,14 +226,14 @@ const updatePosition = () => {
   //if the user is going left but not off screen
   //move their destination left (so we can animate)
   //from our current x
-  if(square.moveLeft && square.destX > 0) {
+  if(square.moveLeft && square.destX > -20) {
 	square.destX -= 2;
   }
   
   //if the user is moving right but not off screen
   //move their destination right (so we can animate)
   //from our current x
-  if(square.moveRight && square.destX < 400) {
+  if(square.moveRight && square.destX < 420) {
 	square.destX += 2;
   }
 
@@ -353,8 +353,10 @@ const redraw = (time) => {
 	);
 	
 	//drawing a optional rectangle around our sprite just to show
-	//the size of each sprite
 	ctx.strokeRect(square.x, square.y, square.width, square.height);
+    
+    // draw the hitbox for platform collisions
+    ctx.strokeRect(square.x, square.y + square.height - 10, square.width, 10);
   }
   
   ctx.restore();
@@ -366,11 +368,13 @@ const redraw = (time) => {
     
     // TEST! DRAWING PLATFORM
     ctx.save();
-    ctx.fillStyle = 'blue';
     
     // TEST! DRAWING COINS
     for(let i = 0; i < platforms.length; i++) {
+      ctx.fillStyle = 'blue';
       ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
+      ctx.fillStyle = 'magenta';
+      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, (platforms[i].height / 2));
     }
     
     ctx.restore();
@@ -419,6 +423,8 @@ const keyDownHandler = (e) => {
 					if(square.isOnGround) {
                       square.isJumping = true;
                       square.isOnGround = false;
+                      square.y += 2;
+                      socket.emit('movementUpdate', square);
                     }
 				}
   
@@ -477,7 +483,7 @@ const init = () => {
       socket.emit('getPlatormData');
       
       // while connected, we are only checking for collisions every 100ms
-      setInterval(sendCollisionCheck, 10);
+      setInterval(sendCollisionCheck, 1);
 	  
 	});  
 	
@@ -513,9 +519,6 @@ const init = () => {
       // update info given by gravity calculation
       square.isFalling = data.isFalling;
       square.isOnGround = data.isOnGround;
-      
-      square.alpha = 0;
-      
     });
   
     socket.on('updatedGravityPlatformHit', (data) => {
@@ -529,10 +532,7 @@ const init = () => {
       // update info given by gravity calculation
       square.isFalling = data.isFalling;
       square.isOnGround = data.isOnGround;
-      square.destY = data.destY;
-      
-      square.alpha = 0;
-      
+      square.destY = data.destY;  
     });
   
     // collision checks

@@ -27,8 +27,43 @@ const PORT = process.env.PORT || process.env.NODE_PORT || 3000;
 
 const coins = [
   {
-    x: 300,
-    y: 400,
+    x: 75,
+    y: 350,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 125,
+    y: 350,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 175,
+    y: 350,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 325,
+    y: 350,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 375,
+    y: 350,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 425,
+    y: 350,
     width: 10,
     height: 20,
   },
@@ -36,10 +71,24 @@ const coins = [
 
 const platforms = [
   {
-    x: 250,
-    y: 450,
+    x: 0,
+    y: 480,
+    width: 500,
+    height: 20,
+  },
+  
+  {
+    x: 300,
+    y: 400,
     width: 200,
-    height: 30,
+    height: 20,
+  },
+  
+  {
+    x: 0,
+    y: 400,
+    width: 200,
+    height: 20,
   },
 ];
 
@@ -156,14 +205,17 @@ io.on('connection', (sock) => {
   // it with the time to make the guarantee of it being unique higher.
   // The seed can be any number in hex. It does not matter.
   // This will get us a hex value that we can convert to a string with toString(16)
+  
+  let xVal = Math.floor(Math.random() * 450);
+  
   socket.square = {
     hash: xxh.h32(`${socket.id}${Date.now()}`, 0xDEADBEEF).toString(16),
     lastUpdate: new Date().getTime(), // last time this object was updated
-    x: 0, // default x value of this square
-    y: 0, // default y value of this square
+    x: xVal, // default x value of this square - random the spawn
+    y: 0, // default y value of this square - always at top of screen
     prevX: 0, // default y value of the last known position
     prevY: 0, // default x value of the last known position
-    destX: 0, // default x value of the desired next x position
+    destX: xVal, // default x value of the desired next x position
     destY: 0, // default y value of the desired next y position
     alpha: 0, // default alpha (how far this object is % from prev to dest)
     height: 121, // height of our sprites
@@ -322,7 +374,7 @@ io.on('connection', (sock) => {
 	// if the user is going down but not off screen
 	// move their destination down (so we can animate)
 	// from our current y
-    if (socket.square.moveDown && socket.square.destY < 400) {
+    if (socket.square.moveDown && socket.square.destY < 398) {
       socket.square.destY += 10;
         // check to see if square has hit the floor. This is to stop the simulated gravity
       if (socket.square.destY >= 400) {

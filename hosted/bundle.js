@@ -7,7 +7,9 @@ var walkImage = void 0;
 var socket = void 0; //this user's socket
 var hash = void 0; //this user's personal object id
 
+// booleans for testing purposes
 var collisionTestBool = void 0;
+var debug = void 0;
 
 //directional constants for which directions a user sprite could be facing.
 var directions = {
@@ -167,8 +169,6 @@ var updateGravity = function updateGravity(data) {
   square.airTime = data.airTime;
   square.isOnGround = data.isOnGround;
   square.destY = data.destY;
-
-  square.alpha = 0;
 };
 
 //remove a user object by the object's id
@@ -235,7 +235,7 @@ var updatePosition = function updatePosition() {
   //if the user is moving right but not off screen
   //move their destination right (so we can animate)
   //from our current x
-  if (square.moveRight && square.destX < 400) {
+  if (square.moveRight && square.destX < 500) {
     square.destX += 2;
   }
 
@@ -353,8 +353,10 @@ var redraw = function redraw(time) {
     );
 
     //drawing a optional rectangle around our sprite just to show
-    //the size of each sprite
     ctx.strokeRect(square.x, square.y, square.width, square.height);
+
+    // draw the hitbox for platform collisions
+    ctx.strokeRect(square.x, square.y + square.height - 10, square.width, 10);
   }
 
   ctx.restore();
@@ -366,11 +368,13 @@ var redraw = function redraw(time) {
 
   // TEST! DRAWING PLATFORM
   ctx.save();
-  ctx.fillStyle = 'blue';
 
   // TEST! DRAWING COINS
   for (var _i = 0; _i < platforms.length; _i++) {
+    ctx.fillStyle = 'blue';
     ctx.fillRect(platforms[_i].x, platforms[_i].y, platforms[_i].width, platforms[_i].height);
+    ctx.fillStyle = 'magenta';
+    ctx.fillRect(platforms[_i].x, platforms[_i].y, platforms[_i].width, platforms[_i].height / 2);
   }
 
   ctx.restore();
@@ -419,6 +423,8 @@ var keyDownHandler = function keyDownHandler(e) {
         if (square.isOnGround) {
           square.isJumping = true;
           square.isOnGround = false;
+          square.y += 2;
+          socket.emit('movementUpdate', square);
         }
       }
 
@@ -476,7 +482,7 @@ var init = function init() {
     socket.emit('getPlatormData');
 
     // while connected, we are only checking for collisions every 100ms
-    setInterval(sendCollisionCheck, 10);
+    setInterval(sendCollisionCheck, 1);
   });
 
   //when the socket receives a 'joined'
@@ -511,8 +517,6 @@ var init = function init() {
     // update info given by gravity calculation
     square.isFalling = data.isFalling;
     square.isOnGround = data.isOnGround;
-
-    square.alpha = 0;
   });
 
   socket.on('updatedGravityPlatformHit', function (data) {
@@ -527,8 +531,6 @@ var init = function init() {
     square.isFalling = data.isFalling;
     square.isOnGround = data.isOnGround;
     square.destY = data.destY;
-
-    square.alpha = 0;
   });
 
   // collision checks
