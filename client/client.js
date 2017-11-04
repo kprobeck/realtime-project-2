@@ -6,6 +6,8 @@ let walkImage;
 //our websocket connection
 let socket; //this user's socket
 let hash; //this user's personal object id
+let score; // score for the current player
+let coinCountdown;
 
 // booleans for testing purposes
 let collisionTestBool;
@@ -132,7 +134,7 @@ const update = (data) => {
 };
 
 // function when colliding with another user
-const collision = (data) => {
+const collisionWithPlayer = (data) => {
   if(hash === data){ //somehow collided with self? do nothing
     return;
   }
@@ -141,9 +143,15 @@ const collision = (data) => {
 };
 
 // function to see if someone else has collided with you, and take actions if true
-const potentialCollision = (data) => {
-  if(hash === data.hashToCheck) { // collision was with this user
+const potentialCollisionWithPlayer = (data) => {
+  if(hash === data.hashToCheck) { // collision was with this user, update their xDest
    collisionTestBool = true;
+   const square = squares[hash];
+     
+   if(square.destX > -20 && square.destX < 480) {
+     square.destX += data.xChange;
+   }
+    
   } else {
     collisionTestBool = false;
   }
@@ -233,21 +241,22 @@ const updatePosition = () => {
   //if the user is moving right but not off screen
   //move their destination right (so we can animate)
   //from our current x
-  if(square.moveRight && square.destX < 420) {
+  if(square.moveRight && square.destX < 480) {
 	square.destX += 2;
   }
 
   //if user is just moving left
-  if(square.moveLeft && !(square.moveUp || square.moveDown)) square.direction = directions.LEFT;
+  if(square.moveLeft) square.direction = directions.LEFT;
 
   //if user is just moving right
-  if(square.moveRight && !(square.moveUp || square.moveDown)) square.direction = directions.RIGHT;
+  if(square.moveRight) square.direction = directions.RIGHT;
   
   //reset our alpha since we are moving
   //want to reset the animation to keep playing
   square.alpha = 0;
 
   socket.emit('movementUpdate', square);
+  sendCollisionCheck();
 };
 
 //redraw our player objects (requestAnimationFrame)
@@ -257,6 +266,29 @@ const redraw = (time) => {
 
   //clear screen
   ctx.clearRect(0, 0, 500, 500);
+  
+  // background - if we want there to be one
+  
+  
+  // draw the time until next round of coins
+  ctx.fillText(`Coins will Respawn in: ${coinCountdown}`, 350, 10);
+  
+  // draw the score
+  ctx.fillText(`Score: ${score}`, 350, 30);
+  
+  // TEST! DRAWING PLATFORM
+    ctx.save();
+
+    for(let i = 0; i < platforms.length; i++) {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
+      if(debug) {
+        ctx.fillStyle = 'magenta';
+        ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, (platforms[i].height / 2));
+      }
+    }
+    
+    ctx.restore();
 
    //grab all the variable names from our squares
   //these will actually be the user id's (hashes)
@@ -265,11 +297,18 @@ const redraw = (time) => {
 
   ctx.save();
   
+  let highScore = 0;
+  
   //for each key in squares
   for(let i = 0; i < keys.length; i++) {
 
 	//grab the square by user id (from our keys)
 	const square = squares[keys[i]];
+    
+    // get the high score
+    if(square.score > highScore) {
+      highScore = square.score;
+    }
 
 	//if alpha less than 1, increase it by 0.05
 	//This will keep the animation running smoothly
@@ -297,7 +336,7 @@ const redraw = (time) => {
 	// if we are mid animation or moving in any direction
 	// we want to make sure we are not stopping an animation that started.
 	// we also want to make sure that if we are moving, it starts animating.
-	if(square.frame > 0 || (square.moveUp || square.moveDown || square.moveRight || square.moveLeft)) {
+	if(square.frame > -1) {
 	  //start increasing our frame counter
 	  //We DON'T want to switch to the next sprite in the spritesheet
 	  //every frame. At 60fps that would be flicker. 
@@ -310,7 +349,7 @@ const redraw = (time) => {
 	  //if our framecount reaches our max,
 	  //meaning we drew the same sprite that many times,
 	  //then it is time to switch to the next sprite in the animation.
-	  if(square.frameCount % 8 === 0) {
+	  if(square.frameCount % 10 === 0) {
 		//since the images in this spritesheet have 8 frames each
 		//starting at 0, we want to make sure the animation loops
 		//back around.
@@ -319,7 +358,7 @@ const redraw = (time) => {
 		//then increase until we hit the limit
 		//If we do reach the limit, then loop back around to the
 		//beginning of the spritesheet animation to play again.
-		if(square.frame < 7) {
+		if(square.frame < 9) {
 		  square.frame++;
 		} else {
 		  square.frame = 0;
@@ -343,7 +382,7 @@ const redraw = (time) => {
 	  //our sprite height * walk direction
 	  //since our spritesheet directions are in
 	  //columns in clockwise order
-	  square.height * square.direction,
+	  0,
 	  square.width, //width to grab from the sprite sheet
 	  square.height,//height to grab from the sprite sheet
 	  square.x, //x location to draw on canvas
@@ -351,45 +390,37 @@ const redraw = (time) => {
 	  square.width, //width to draw on canvas
 	  square.height, //height to draw on canvas
 	);
-	
-	//drawing a optional rectangle around our sprite just to show
-	ctx.strokeRect(square.x, square.y, square.width, square.height);
     
-    // draw the hitbox for platform collisions
-    ctx.strokeRect(square.x, square.y + square.height - 10, square.width, 10);
+    if(debug) {
+      //drawing a optional rectangle around our sprite just to show
+	 ctx.strokeRect(square.x, square.y, square.width, square.height);
+      
+      // draw the hitbox for platform collisions
+      ctx.strokeRect(square.x, square.y + square.height - 10, square.width, 10);
+    }
   }
   
   ctx.restore();
   
-    // TEST! SEE IF THE COLLISION IS WORKING
-    if(collisionTestBool) {
-      ctx.fillText(`You are colliding with another player!`, 100, 100, 400);
-    }
-    
-    // TEST! DRAWING PLATFORM
-    ctx.save();
-    
-    // TEST! DRAWING COINS
-    for(let i = 0; i < platforms.length; i++) {
-      ctx.fillStyle = 'blue';
-      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
-      ctx.fillStyle = 'magenta';
-      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, (platforms[i].height / 2));
-    }
-    
-    ctx.restore();
-    
-    collisionTestBool = false;
-    
-    ctx.save();
-    ctx.fillStyle = 'red';
+  // draw the highest score
+  ctx.fillText(`Highest Score: ${highScore}`, 350, 50);
   
-    // TEST! DRAWING COINS
-    for(let i = 0; i < coins.length; i++) {
-      ctx.fillRect(coins[i].x, coins[i].y, coins[i].width, coins[i].height);
-    }
+  // TEST! SEE IF THE COLLISION IS WORKING
+  if(collisionTestBool && debug) {
+    ctx.fillText(`You are colliding with another player!`, 100, 100, 400);
+  }
   
-    ctx.restore();
+  collisionTestBool = false;
+  
+  ctx.save();
+  ctx.fillStyle = 'red';
+
+  // TEST! DRAWING COINS
+  for(let i = 0; i < coins.length; i++) {
+    ctx.fillRect(coins[i].x, coins[i].y, coins[i].width, coins[i].height);
+  }
+
+  ctx.restore();
 
   //redraw (hopefully at 60fps)
   requestAnimationFrame(redraw);
@@ -427,6 +458,14 @@ const keyDownHandler = (e) => {
                       socket.emit('movementUpdate', square);
                     }
 				}
+                // B, debug
+                else if (keyPressed === 66) {
+                  if(debug) {
+                    debug = false;
+                  } else {
+                    debug = true;
+                  }
+                }
   
 	//if one of these keys is down, let's cancel the browsers
 	//default action so the page doesn't try to scroll on the user
@@ -469,6 +508,9 @@ const init = () => {
 	walkImage = document.querySelector('#walk');
 	canvas = document.querySelector('#canvas');
 	ctx = canvas.getContext('2d');
+  
+    // set initial score to 0
+    score = 0;
 
 	//connect to the server
 	//only running once so we don't open multiple
@@ -481,9 +523,6 @@ const init = () => {
       // get the coin/platform data from the server
       socket.emit('getCoinData');
       socket.emit('getPlatormData');
-      
-      // while connected, we are only checking for collisions every 100ms
-      setInterval(sendCollisionCheck, 1);
 	  
 	});  
 	
@@ -503,6 +542,23 @@ const init = () => {
 	//when the socket receives an   'updatedMovement'
 	//event from the server, call update
 	socket.on('updatedMovement', update);
+  
+    // player got a coin, reward them
+    socket.on('gotCoin', () => {
+      score += 100;
+      squares[hash].score = score;
+      socket.emit('updateScore', squares[hash]);
+    });
+  
+    // update score of a player that received points
+    socket.on('updatedScore', (data) => {
+      squares[data.hash].score = data.score;
+    });
+  
+    // every second, we will receive the number of when the next round of coins will spawn
+    socket.on('coinTick', (data) => {
+      coinCountdown = data;
+    });
   
     // gravity
     socket.on('updatedGravity', updateGravity);
@@ -536,8 +592,8 @@ const init = () => {
     });
   
     // collision checks
-    socket.on('collided', collision);
-    socket.on('potentialCollision', potentialCollision);
+    socket.on('collided', collisionWithPlayer);
+    socket.on('potentialCollision', potentialCollisionWithPlayer);
 	
 	//when the socket receives a 'left'
 	//event from the server, call removeUser

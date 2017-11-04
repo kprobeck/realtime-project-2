@@ -25,72 +25,152 @@ const walkImage = fs.readFileSync(`${__dirname}/../hosted/walk.png`);
 
 const PORT = process.env.PORT || process.env.NODE_PORT || 3000;
 
-const coins = [
-  {
-    x: 75,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-  
-  {
-    x: 125,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-  
-  {
-    x: 175,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-  
-  {
-    x: 325,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-  
-  {
-    x: 375,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-  
-  {
-    x: 425,
-    y: 350,
-    width: 10,
-    height: 20,
-  },
-];
+// function to get random whole numbers
+const getRandomWholeNum = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// variables the players receive to update their "level" with coins and platforms
+let startReplenish = false;
+let coinCountdown = 11;
+
+// random numbers for randomly generated platforms / coins
+const x11 = getRandomWholeNum(-30, 70);
+const x12 = getRandomWholeNum(170, 280);
+
+const x2 = getRandomWholeNum(0, 250);
 
 const platforms = [
+
+  // base floor
   {
     x: 0,
     y: 480,
     width: 500,
     height: 20,
   },
-  
+
+  // 1st floor
   {
-    x: 300,
-    y: 400,
+    x: x11,
+    y: 380,
     width: 200,
     height: 20,
   },
   
   {
-    x: 0,
-    y: 400,
+    x: x12,
+    y: 380,
+    width: 200,
+    height: 20,
+  },
+  
+  // 2nd floor
+  {
+    x: x2,
+    y: 280,
     width: 200,
     height: 20,
   },
 ];
+
+const allCoins = [
+  
+  // base floor coins
+  {
+    x: 50,
+    y: 430,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 170,
+    y: 430,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 290,
+    y: 430,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: 410,
+    y: 430,
+    width: 10,
+    height: 20,
+  },
+  
+  // 1st floor coins - 1
+  {
+    x: x11 + 40,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+  
+  {
+    x: x11 + 90,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+
+  {
+    x: x11 + 140,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+
+  // 1st floor coins - 2
+  {
+    x: x12 + 40,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+
+  {
+    x: x12 + 90,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+
+  {
+    x: x12 + 140,
+    y: 330,
+    width: 10,
+    height: 20,
+  },
+
+  // 2nd floor
+  {
+    x: x2 + 40,
+    y: 230,
+    width: 10,
+    height: 20,
+  },
+
+  {
+    x: x2 + 90,
+    y: 230,
+    width: 10,
+    height: 20,
+  },
+
+  {
+    x: x2 + 140,
+    y: 230,
+    width: 10,
+    height: 20,
+  },
+];
+
+let coins = allCoins.slice();
 
 // function to calculate collisions between players
 const collisionCheck = (rect1, rect2) => {
@@ -161,12 +241,38 @@ const io = socketio(app);
 // start listening
 app.listen(PORT);
 
+// function to replenish coins
+const coinReplenish = () => {
+  coins = [];
+  coins = allCoins.slice();
+  io.sockets.in('room1').emit('coinDataFromServer', coins);
+};
+
+// function to count down the coinCountdown and send it out to everyone
+const coinTick = () => {
+  coinCountdown--;
+  io.sockets.in('room1').emit('coinTick', coinCountdown);
+
+  if (coinCountdown === 0) {
+    coinReplenish();
+    coinCountdown = 11;
+  }
+};
+
 // for each new socket connection
 io.on('connection', (sock) => {
   const socket = sock;
   // joining into hard-coded room for this app
   // app users in room1
   socket.join('room1');
+
+  // first, see if we should start replenishing the coins
+  if (!startReplenish) {
+    startReplenish = true; // so we don't set another interval
+
+    // have the server automatically replenish the coins on the screen every 10 seconds
+    setInterval(coinTick, 1000);
+  }
 
   /**
     Attach a "square" object to each socket (each connection/user).
@@ -205,9 +311,9 @@ io.on('connection', (sock) => {
   // it with the time to make the guarantee of it being unique higher.
   // The seed can be any number in hex. It does not matter.
   // This will get us a hex value that we can convert to a string with toString(16)
-  
-  let xVal = Math.floor(Math.random() * 450);
-  
+
+  const xVal = getRandomWholeNum(0, 450);
+
   socket.square = {
     hash: xxh.h32(`${socket.id}${Date.now()}`, 0xDEADBEEF).toString(16),
     lastUpdate: new Date().getTime(), // last time this object was updated
@@ -218,8 +324,8 @@ io.on('connection', (sock) => {
     destX: xVal, // default x value of the desired next x position
     destY: 0, // default y value of the desired next y position
     alpha: 0, // default alpha (how far this object is % from prev to dest)
-    height: 121, // height of our sprites
-    width: 61, // width of our sprites
+    height: 60, // height of our sprites
+    width: 30, // width of our sprites
     direction: 0, // default direction identifier for which direction the character is facing from
     // 0 to 7 clockwise
     frame: 0, // which frame of animation we are on in the spritesheet
@@ -233,6 +339,7 @@ io.on('connection', (sock) => {
     isJumping: false, // NEW VARIABLE, to test for gravity
     isOnGround: false, // NEW VARIABLE, to test for gravity
     airTime: 10, // NEW VARIABLE, to test for gravity
+    score: 0, // keeps track of the current player's score
   };
 
   // send the user a joined event sending them their new square.
@@ -255,9 +362,17 @@ io.on('connection', (sock) => {
     for (let i = 0; i < keysOfSquares.length; i++) {
       if (squares[keysOfSquares[i]].hash !== socket.square.hash) {
         if (collisionCheck(squares[keysOfSquares[i]], socket.square)) {
+          let xChange = 0;
+          // check if the user is on the left or right of the other
+          if (squares[keysOfSquares[i]].x < socket.square.x) { // on left, push left
+            xChange = -5;
+          } else if (squares[keysOfSquares[i]].x > socket.square.x) { // on right, push right
+            xChange = 5;
+          }
           const dataToSend = {
             hashToCheck: squares[keysOfSquares[i]].hash,
             hashCollidedWith: socket.square.hash,
+            xChange,
           };
 
           // broadcast to call other sockets to see if they are the ones that are hit
@@ -349,7 +464,7 @@ io.on('connection', (sock) => {
     /* CALCULATE GRAVITY */
 
     // first, check to see if the player is in fact on the ground
-    if (socket.square.y >= 398) {
+    if (socket.square.y >= 500) {
       socket.square.isOnGround = true;
     }
 
@@ -366,15 +481,15 @@ io.on('connection', (sock) => {
 	// move their destination up (so we can animate)
 	// from our current Y
     // this is only for having the player jump
-    if (socket.square.moveUp && socket.square.destY > 0 && socket.square.airTime > 0) {
-      socket.square.destY -= 30;
+    if (socket.square.moveUp && socket.square.destY > -50 && socket.square.airTime > 0) {
+      socket.square.destY -= 25;
       socket.square.airTime--;
     }
 
 	// if the user is going down but not off screen
 	// move their destination down (so we can animate)
 	// from our current y
-    if (socket.square.moveDown && socket.square.destY < 398) {
+    if (socket.square.moveDown && socket.square.destY < 500) {
       socket.square.destY += 10;
         // check to see if square has hit the floor. This is to stop the simulated gravity
       if (socket.square.destY >= 400) {
@@ -426,6 +541,16 @@ io.on('connection', (sock) => {
     // have accurate info so they will seem up to date on their screen
     // but we need to rubber-band them back to a valid position.
     // socket.emit('updatedMovement', socket.square);
+  });
+
+  // simple handler to update score of a player
+  socket.on('updateScore', (data) => {
+    const dataToSend = {
+      score: data.score,
+      hash: data.hash,
+    };
+
+    socket.broadcast.emit('updatedScore', dataToSend);
   });
 
   // when a user disconnects, we want to make sure we let everyone know
