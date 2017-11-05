@@ -3,27 +3,18 @@
 let canvas;
 let ctx;
 let walkImage;
+let backgroundImage;
+let cartridgeImage;
+let platformImage;
 //our websocket connection
 let socket; //this user's socket
 let hash; //this user's personal object id
 let score; // score for the current player
-let coinCountdown;
+let coinCountdown = 10;
 
 // booleans for testing purposes
 let collisionTestBool;
 let debug;
-
-//directional constants for which directions a user sprite could be facing.
-const directions = {
-  DOWNLEFT: 0,
-  DOWN: 1,
-  DOWNRIGHT: 2, 
-  LEFT: 3,
-  UPLEFT: 4,
-  RIGHT: 5, 
-  UPRIGHT: 6,
-  UP: 7
-};
 
 //object to hold all of our squares
 //These will be all of our user's objects
@@ -244,12 +235,6 @@ const updatePosition = () => {
   if(square.moveRight && square.destX < 480) {
 	square.destX += 2;
   }
-
-  //if user is just moving left
-  if(square.moveLeft) square.direction = directions.LEFT;
-
-  //if user is just moving right
-  if(square.moveRight) square.direction = directions.RIGHT;
   
   //reset our alpha since we are moving
   //want to reset the animation to keep playing
@@ -267,21 +252,24 @@ const redraw = (time) => {
   //clear screen
   ctx.clearRect(0, 0, 500, 500);
   
-  // background - if we want there to be one
+  // background
+  ctx.drawImage(backgroundImage, 0, 0, 500, 500, 0, 0, 500, 500);
   
   
   // draw the time until next round of coins
-  ctx.fillText(`Coins will Respawn in: ${coinCountdown}`, 350, 10);
+  ctx.save();
+  ctx.fillStyle = 'white';
+  ctx.fillText(`More cartridges inbound: ${coinCountdown}`, 5, 70);
   
   // draw the score
-  ctx.fillText(`Score: ${score}`, 350, 30);
+  ctx.fillText(`Your Score: ${score}`, 5, 20);
+  ctx.restore();
   
-  // TEST! DRAWING PLATFORM
+  // DRAWING PLATFORM
     ctx.save();
 
     for(let i = 0; i < platforms.length; i++) {
-      ctx.fillStyle = 'blue';
-      ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
+      ctx.drawImage(platformImage, 0, 0, 200, 20, platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
       if(debug) {
         ctx.fillStyle = 'magenta';
         ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, (platforms[i].height / 2));
@@ -403,7 +391,10 @@ const redraw = (time) => {
   ctx.restore();
   
   // draw the highest score
-  ctx.fillText(`Highest Score: ${highScore}`, 350, 50);
+  ctx.save();
+  ctx.fillStyle = 'white';
+  ctx.fillText(`Highest Score: ${highScore}`, 5, 40);
+  ctx.restore();
   
   // TEST! SEE IF THE COLLISION IS WORKING
   if(collisionTestBool && debug) {
@@ -412,15 +403,10 @@ const redraw = (time) => {
   
   collisionTestBool = false;
   
-  ctx.save();
-  ctx.fillStyle = 'red';
-
-  // TEST! DRAWING COINS
+  // DRAWING "COINS"
   for(let i = 0; i < coins.length; i++) {
-    ctx.fillRect(coins[i].x, coins[i].y, coins[i].width, coins[i].height);
+    ctx.drawImage(cartridgeImage, 0, 0, 10, 20, coins[i].x, coins[i].y, coins[i].width, coins[i].height);
   }
-
-  ctx.restore();
 
   //redraw (hopefully at 60fps)
   requestAnimationFrame(redraw);
@@ -469,7 +455,7 @@ const keyDownHandler = (e) => {
   
 	//if one of these keys is down, let's cancel the browsers
 	//default action so the page doesn't try to scroll on the user
-	if(square.moveUp || square.moveDown || square.moveLeft || square.moveRight) {
+	if(square.moveUp || square.moveDown || square.moveLeft || square.moveRight || square.isJumping) {
 	  e.preventDefault();
 	}
 };
@@ -506,8 +492,14 @@ const sendCollisionCheck = () => {
 
 const init = () => {
 	walkImage = document.querySelector('#walk');
+    backgroundImage = document.querySelector('#background');
+    cartridgeImage = document.querySelector('#cartridge');
+    platformImage = document.querySelector("#platform");
 	canvas = document.querySelector('#canvas');
 	ctx = canvas.getContext('2d');
+  
+    // set the font for the ctx
+    ctx.font = "20px Calibri";
   
     // set initial score to 0
     score = 0;
@@ -545,7 +537,7 @@ const init = () => {
   
     // player got a coin, reward them
     socket.on('gotCoin', () => {
-      score += 100;
+      score += 1;
       squares[hash].score = score;
       socket.emit('updateScore', squares[hash]);
     });

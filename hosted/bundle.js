@@ -3,27 +3,18 @@
 var canvas = void 0;
 var ctx = void 0;
 var walkImage = void 0;
+var backgroundImage = void 0;
+var cartridgeImage = void 0;
+var platformImage = void 0;
 //our websocket connection
 var socket = void 0; //this user's socket
 var hash = void 0; //this user's personal object id
 var score = void 0; // score for the current player
-var coinCountdown = void 0;
+var coinCountdown = 10;
 
 // booleans for testing purposes
 var collisionTestBool = void 0;
 var debug = void 0;
-
-//directional constants for which directions a user sprite could be facing.
-var directions = {
-  DOWNLEFT: 0,
-  DOWN: 1,
-  DOWNRIGHT: 2,
-  LEFT: 3,
-  UPLEFT: 4,
-  RIGHT: 5,
-  UPRIGHT: 6,
-  UP: 7
-};
 
 //object to hold all of our squares
 //These will be all of our user's objects
@@ -246,12 +237,6 @@ var updatePosition = function updatePosition() {
     square.destX += 2;
   }
 
-  //if user is just moving left
-  if (square.moveLeft) square.direction = directions.LEFT;
-
-  //if user is just moving right
-  if (square.moveRight) square.direction = directions.RIGHT;
-
   //reset our alpha since we are moving
   //want to reset the animation to keep playing
   square.alpha = 0;
@@ -268,21 +253,23 @@ var redraw = function redraw(time) {
   //clear screen
   ctx.clearRect(0, 0, 500, 500);
 
-  // background - if we want there to be one
-
+  // background
+  ctx.drawImage(backgroundImage, 0, 0, 500, 500, 0, 0, 500, 500);
 
   // draw the time until next round of coins
-  ctx.fillText('Coins will Respawn in: ' + coinCountdown, 350, 10);
+  ctx.save();
+  ctx.fillStyle = 'white';
+  ctx.fillText('More cartridges inbound: ' + coinCountdown, 5, 70);
 
   // draw the score
-  ctx.fillText('Score: ' + score, 350, 30);
+  ctx.fillText('Your Score: ' + score, 5, 20);
+  ctx.restore();
 
-  // TEST! DRAWING PLATFORM
+  // DRAWING PLATFORM
   ctx.save();
 
   for (var i = 0; i < platforms.length; i++) {
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
+    ctx.drawImage(platformImage, 0, 0, 200, 20, platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height);
     if (debug) {
       ctx.fillStyle = 'magenta';
       ctx.fillRect(platforms[i].x, platforms[i].y, platforms[i].width, platforms[i].height / 2);
@@ -402,7 +389,10 @@ var redraw = function redraw(time) {
   ctx.restore();
 
   // draw the highest score
-  ctx.fillText('Highest Score: ' + highScore, 350, 50);
+  ctx.save();
+  ctx.fillStyle = 'white';
+  ctx.fillText('Highest Score: ' + highScore, 5, 40);
+  ctx.restore();
 
   // TEST! SEE IF THE COLLISION IS WORKING
   if (collisionTestBool && debug) {
@@ -411,15 +401,10 @@ var redraw = function redraw(time) {
 
   collisionTestBool = false;
 
-  ctx.save();
-  ctx.fillStyle = 'red';
-
-  // TEST! DRAWING COINS
+  // DRAWING "COINS"
   for (var _i2 = 0; _i2 < coins.length; _i2++) {
-    ctx.fillRect(coins[_i2].x, coins[_i2].y, coins[_i2].width, coins[_i2].height);
+    ctx.drawImage(cartridgeImage, 0, 0, 10, 20, coins[_i2].x, coins[_i2].y, coins[_i2].width, coins[_i2].height);
   }
-
-  ctx.restore();
 
   //redraw (hopefully at 60fps)
   requestAnimationFrame(redraw);
@@ -468,7 +453,7 @@ var keyDownHandler = function keyDownHandler(e) {
 
   //if one of these keys is down, let's cancel the browsers
   //default action so the page doesn't try to scroll on the user
-  if (square.moveUp || square.moveDown || square.moveLeft || square.moveRight) {
+  if (square.moveUp || square.moveDown || square.moveLeft || square.moveRight || square.isJumping) {
     e.preventDefault();
   }
 };
@@ -505,8 +490,14 @@ var sendCollisionCheck = function sendCollisionCheck() {
 
 var init = function init() {
   walkImage = document.querySelector('#walk');
+  backgroundImage = document.querySelector('#background');
+  cartridgeImage = document.querySelector('#cartridge');
+  platformImage = document.querySelector("#platform");
   canvas = document.querySelector('#canvas');
   ctx = canvas.getContext('2d');
+
+  // set the font for the ctx
+  ctx.font = "20px Calibri";
 
   // set initial score to 0
   score = 0;
@@ -542,7 +533,7 @@ var init = function init() {
 
   // player got a coin, reward them
   socket.on('gotCoin', function () {
-    score += 100;
+    score += 1;
     squares[hash].score = score;
     socket.emit('updateScore', squares[hash]);
   });

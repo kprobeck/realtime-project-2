@@ -22,6 +22,9 @@ const fs = require('fs');
 const xxh = require('xxhashjs');
 
 const walkImage = fs.readFileSync(`${__dirname}/../hosted/walk.png`);
+const backgroundImage = fs.readFileSync(`${__dirname}/../hosted/background.png`);
+const cartridgeImage = fs.readFileSync(`${__dirname}/../hosted/et-cartridge.png`);
+const platformImage = fs.readFileSync(`${__dirname}/../hosted/platform-sand.png`);
 
 const PORT = process.env.PORT || process.env.NODE_PORT || 3000;
 
@@ -33,10 +36,10 @@ let startReplenish = false;
 let coinCountdown = 11;
 
 // random numbers for randomly generated platforms / coins
-const x11 = getRandomWholeNum(-30, 70);
-const x12 = getRandomWholeNum(170, 280);
+const x11 = getRandomWholeNum(-30, 50);
+const x12 = getRandomWholeNum(250, 350);
 
-const x2 = getRandomWholeNum(0, 250);
+const x2 = getRandomWholeNum(-30, 350);
 
 const platforms = [
 
@@ -55,14 +58,14 @@ const platforms = [
     width: 200,
     height: 20,
   },
-  
+
   {
     x: x12,
     y: 380,
     width: 200,
     height: 20,
   },
-  
+
   // 2nd floor
   {
     x: x2,
@@ -73,7 +76,7 @@ const platforms = [
 ];
 
 const allCoins = [
-  
+
   // base floor coins
   {
     x: 50,
@@ -81,28 +84,28 @@ const allCoins = [
     width: 10,
     height: 20,
   },
-  
+
   {
     x: 170,
     y: 430,
     width: 10,
     height: 20,
   },
-  
+
   {
     x: 290,
     y: 430,
     width: 10,
     height: 20,
   },
-  
+
   {
     x: 410,
     y: 430,
     width: 10,
     height: 20,
   },
-  
+
   // 1st floor coins - 1
   {
     x: x11 + 40,
@@ -110,7 +113,7 @@ const allCoins = [
     width: 10,
     height: 20,
   },
-  
+
   {
     x: x11 + 90,
     y: 330,
@@ -197,7 +200,16 @@ const collisionPlatform = (playerSquare, platform) => {
 };
 
 const handler = (req, res) => {
-  if (req.url === '/walk.png') {
+  if (req.url === '/platform-sand.png') {
+    res.writeHead(200, { 'Content-Type': 'image/png' });
+    res.end(platformImage);
+  }else if (req.url === '/et-cartridge.png') {
+    res.writeHead(200, { 'Content-Type': 'image/png' });
+    res.end(cartridgeImage);
+  } else if (req.url === '/background.png') {
+    res.writeHead(200, { 'Content-Type': 'image/png' });
+    res.end(backgroundImage);
+  } else if (req.url === '/walk.png') {
     res.writeHead(200, { 'Content-Type': 'image/png' });
     res.end(walkImage);
   } else if (req.url === '/bundle.js') {
